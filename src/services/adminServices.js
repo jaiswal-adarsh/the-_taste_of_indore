@@ -58,9 +58,43 @@ export const bannerService = {
             console.error("Error deleting banner: ", error);
             throw error;
         }
+    },
+    update: async (id, data) => {
+        try {
+            await setDoc(doc(db, 'banners', id), data, { merge: true });
+        } catch (error) {
+            console.error("Error updating banner: ", error);
+            throw error;
+        }
     }
 };
 
+// Shipping Rates
+export const shippingService = {
+    getRates: async () => {
+        try {
+            const docRef = doc(db, 'config', 'shipping');
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                return docSnap.data();
+            }
+            return {};
+        } catch (error) {
+            console.error("Error getting shipping rates: ", error);
+            return {};
+        }
+    },
+    saveRates: async (rates) => {
+        try {
+            await setDoc(doc(db, 'config', 'shipping'), rates);
+        } catch (error) {
+            console.error("Error saving shipping rates: ", error);
+            throw error;
+        }
+    }
+};
+
+// Content (About Us)
 // Content (About Us)
 export const contentService = {
     getAbout: async () => {
@@ -68,19 +102,19 @@ export const contentService = {
             const docRef = doc(db, 'content', 'about');
             const docSnap = await getDoc(docRef);
             if (docSnap.exists()) {
-                return docSnap.data().text;
+                return docSnap.data(); // Return full object { text, images }
             } else {
-                return '';
+                return { text: '', images: [] };
             }
         } catch (error) {
             console.error("Error getting about content: ", error);
-            return '';
+            return { text: '', images: [] };
         }
     },
-    updateAbout: async (text) => {
+    updateAbout: async (data) => {
         try {
-            await setDoc(doc(db, 'content', 'about'), { text });
-            return text;
+            await setDoc(doc(db, 'content', 'about'), data);
+            return data;
         } catch (error) {
             console.error("Error updating about content: ", error);
             throw error;

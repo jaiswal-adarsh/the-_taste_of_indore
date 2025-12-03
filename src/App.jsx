@@ -13,6 +13,7 @@ import Checkout from './pages/Checkout';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import Profile from './pages/Profile';
 import About from './pages/About';
+import OrderSuccess from './pages/OrderSuccess';
 
 // Protected Route Component
 const ProtectedRoute = ({ children, adminOnly = false }) => {
@@ -51,6 +52,11 @@ function App() {
               <Route path="checkout" element={
                 <ProtectedRoute>
                   <Checkout />
+                </ProtectedRoute>
+              } />
+              <Route path="order-success" element={
+                <ProtectedRoute>
+                  <OrderSuccess />
                 </ProtectedRoute>
               } />
 

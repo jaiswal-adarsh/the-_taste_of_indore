@@ -38,11 +38,15 @@ export const orderService = {
         }
     },
 
-    updateOrderStatus: async (id, status) => {
+    updateOrderStatus: async (id, status, reason = null) => {
         try {
             const orderRef = doc(db, 'orders', id);
-            await updateDoc(orderRef, { status });
-            return { id, status };
+            const updates = { status };
+            if (reason) {
+                updates.cancellationReason = reason;
+            }
+            await updateDoc(orderRef, updates);
+            return { id, ...updates };
         } catch (error) {
             console.error("Error updating order status: ", error);
             throw error;

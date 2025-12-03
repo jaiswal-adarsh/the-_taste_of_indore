@@ -13,12 +13,24 @@ const ProductDetail = () => {
     const [product, setProduct] = useState(null);
     const [loading, setLoading] = useState(true);
     const [quantity, setQuantity] = useState(1);
+    const [activeImage, setActiveImage] = useState('');
+    const [selectedVariant, setSelectedVariant] = useState(null);
 
     useEffect(() => {
         const fetchProduct = async () => {
             try {
                 const data = await productService.getProductById(id);
                 setProduct(data);
+                // Set initial image
+                if (data.images && data.images.length > 0) {
+                    setActiveImage(data.images[0]);
+                } else {
+                    setActiveImage(data.image);
+                }
+                // Set initial variant
+                if (data.variants && data.variants.length > 0) {
+                    setSelectedVariant(data.variants[0]);
+                }
             } catch (error) {
                 console.error('Error fetching product:', error);
                 navigate('/shop'); // Redirect if not found
@@ -31,7 +43,14 @@ const ProductDetail = () => {
     }, [id, navigate]);
 
     const handleAddToCart = () => {
-        addToCart(product, quantity);
+        const itemToAdd = {
+            ...product,
+            id: selectedVariant ? `${product.id}-${selectedVariant.weight}` : product.id,
+            price: selectedVariant ? selectedVariant.price : product.price,
+            weight: selectedVariant ? selectedVariant.weight : null,
+            image: activeImage || product.image
+        };
+        addToCart(itemToAdd, quantity);
     };
 
     if (loading) {
@@ -43,6 +62,8 @@ const ProductDetail = () => {
     }
 
     if (!product) return null;
+
+    const currentPrice = selectedVariant ? selectedVariant.price : product.price;
 
     return (
         <div className="container mx-auto px-4 py-8">
@@ -59,15 +80,32 @@ const ProductDetail = () => {
                 <motion.div
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
-                    className="bg-white rounded-2xl p-4 shadow-sm border border-[var(--color-border)]"
+                    className="flex flex-col gap-4"
                 >
-                    <div className="aspect-square overflow-hidden rounded-xl bg-gray-50">
-                        <img
-                            src={product.image}
-                            alt={product.name}
-                            className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
-                        />
+                    <div className="bg-white rounded-2xl p-4 shadow-sm border border-[var(--color-border)]">
+                        <div className="aspect-square overflow-hidden rounded-xl bg-gray-50">
+                            <img
+                                src={activeImage || product.image}
+                                alt={product.name}
+                                className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
+                            />
+                        </div>
                     </div>
+                    {/* Image Gallery */}
+                    {product.images && product.images.length > 1 && (
+                        <div className="flex gap-2 overflow-x-auto pb-2">
+                            {product.images.map((img, index) => (
+                                <button
+                                    key={index}
+                                    onClick={() => setActiveImage(img)}
+                                    className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${activeImage === img ? 'border-[var(--color-primary)]' : 'border-transparent hover:border-gray-300'
+                                        }`}
+                                >
+                                    <img src={img} alt={`${product.name} ${index + 1}`} className="w-full h-full object-cover" />
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </motion.div>
 
                 {/* Info Section */}
@@ -100,8 +138,31 @@ const ProductDetail = () => {
                     </div>
 
                     <div className="text-3xl font-bold text-[var(--color-secondary)] mb-6">
-                        ₹{product.price}
+                        ₹{currentPrice}
                     </div>
+
+                    {/* Variants Selector */}
+                    {product.variants && product.variants.length > 0 && (
+                        <div className="mb-6">
+                            <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-2">
+                                Select Weight
+                            </label>
+                            <div className="flex flex-wrap gap-3">
+                                {product.variants.map((variant, index) => (
+                                    <button
+                                        key={index}
+                                        onClick={() => setSelectedVariant(variant)}
+                                        className={`px-4 py-2 rounded-lg border transition-all ${selectedVariant === variant
+                                                ? 'border-[var(--color-primary)] bg-orange-50 text-[var(--color-primary)] font-medium'
+                                                : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                                            }`}
+                                    >
+                                        {variant.weight}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     <p className="text-[var(--color-text-main)] text-lg leading-relaxed mb-8">
                         {product.description}

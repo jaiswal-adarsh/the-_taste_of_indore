@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { productService } from '../../services/productService';
 import { orderService } from '../../services/orderService';
-import { categoryService, bannerService, contentService } from '../../services/adminServices';
+import { categoryService, bannerService, contentService, shippingService } from '../../services/adminServices';
 import { authService } from '../../services/authService';
 import Button from '../../components/Button';
 import Input from '../../components/Input';
 import OrderDetailsModal from '../../components/OrderDetailsModal';
-import { LayoutDashboard, Package, ShoppingBag, Users, Plus, Edit, Trash2, Layers, Image as ImageIcon, FileText, X } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingBag, Users, Plus, Edit, Trash2, Layers, Image as ImageIcon, FileText, X, MinusCircle, Truck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const AdminDashboard = () => {
@@ -16,13 +16,16 @@ const AdminDashboard = () => {
     const [users, setUsers] = useState([]);
     const [categories, setCategories] = useState([]);
     const [banners, setBanners] = useState([]);
-    const [aboutContent, setAboutContent] = useState('');
+    const [aboutContent, setAboutContent] = useState({ text: '', images: [] });
+    const [shippingRates, setShippingRates] = useState({});
     const [loading, setLoading] = useState(true);
     const [selectedOrder, setSelectedOrder] = useState(null);
 
     // Form States
     const [newCategory, setNewCategory] = useState('');
-    const [newBanner, setNewBanner] = useState('');
+    const [newBanner, setNewBanner] = useState({ title: '', image: '' });
+    const [editingBanner, setEditingBanner] = useState(null);
+    const [shippingForm, setShippingForm] = useState({ state: '', fee: '' });
 
     // Product Management States
     const [showProductModal, setShowProductModal] = useState(false);
@@ -32,8 +35,21 @@ const AdminDashboard = () => {
         description: '',
         price: '',
         category: 'Namkeen',
-        image: '',
+        image1: '',
+        image2: '',
+        image3: '',
+        image4: '',
+        variants: [], // Array of { weight, price }
         inStock: true
+    });
+
+    // About Content Form State (Local)
+    const [aboutForm, setAboutForm] = useState({
+        text: '',
+        image1: '',
+        image2: '',
+        image3: '',
+        image4: ''
     });
 
     // User Management States
@@ -45,16 +61,31 @@ const AdminDashboard = () => {
         fetchData();
     }, []);
 
+    useEffect(() => {
+        // Sync aboutContent to aboutForm when fetched
+        if (aboutContent) {
+            const imgs = aboutContent.images || [];
+            setAboutForm({
+                text: aboutContent.text || '',
+                image1: imgs[0] || '',
+                image2: imgs[1] || '',
+                image3: imgs[2] || '',
+                image4: imgs[3] || ''
+            });
+        }
+    }, [aboutContent]);
+
     const fetchData = async () => {
         try {
             console.log('AdminDashboard: Fetching data...');
-            const [p, o, u, c, b, a] = await Promise.all([
+            const [p, o, u, c, b, a, s] = await Promise.all([
                 productService.getAllProducts(),
                 orderService.getAllOrders(),
                 authService.getAllUsers(),
                 categoryService.getAll(),
                 bannerService.getAll(),
-                contentService.getAbout()
+                contentService.getAbout(),
+                shippingService.getRates()
             ]);
             console.log('AdminDashboard: Orders fetched:', o);
             setProducts(p);
@@ -62,7 +93,8 @@ const AdminDashboard = () => {
             setUsers(u);
             setCategories(c);
             setBanners(b);
-            setAboutContent(a);
+            setAboutContent(a || { text: '', images: [] });
+            setShippingRates(s || {});
         } catch (error) {
             console.error('Error fetching admin data:', error);
         } finally {
@@ -74,12 +106,28 @@ const AdminDashboard = () => {
     const handleProductSubmit = async (e) => {
         e.preventDefault();
         try {
+            // Combine separate image fields into array
+            const imagesArray = [
+                productForm.image1,
+                productForm.image2,
+                productForm.image3,
+                productForm.image4
+            ].map(url => url.trim()).filter(url => url);
+
             const productData = {
                 ...productForm,
                 price: Number(productForm.price),
+                images: imagesArray,
+                image: imagesArray[0] || '', // Set main image to first image
                 rating: editingProduct ? editingProduct.rating : 0,
                 reviews: editingProduct ? editingProduct.reviews : 0
             };
+
+            // Remove temporary fields
+            delete productData.image1;
+            delete productData.image2;
+            delete productData.image3;
+            delete productData.image4;
 
             if (editingProduct) {
                 await productService.updateProduct(editingProduct.id, productData);
@@ -90,7 +138,7 @@ const AdminDashboard = () => {
             }
             setShowProductModal(false);
             setEditingProduct(null);
-            setProductForm({ name: '', description: '', price: '', category: 'Namkeen', image: '', inStock: true });
+            resetProductForm();
             fetchData();
         } catch (error) {
             console.error(error);
@@ -98,14 +146,34 @@ const AdminDashboard = () => {
         }
     };
 
+    const resetProductForm = () => {
+        setProductForm({
+            name: '',
+            description: '',
+            price: '',
+            category: 'Namkeen',
+            image1: '',
+            image2: '',
+            image3: '',
+            image4: '',
+            variants: [],
+            inStock: true
+        });
+    };
+
     const handleEditProduct = (product) => {
         setEditingProduct(product);
+        const images = product.images || (product.image ? [product.image] : []);
         setProductForm({
             name: product.name,
             description: product.description,
             price: product.price,
             category: product.category,
-            image: product.image,
+            image1: images[0] || '',
+            image2: images[1] || '',
+            image3: images[2] || '',
+            image4: images[3] || '',
+            variants: product.variants || [],
             inStock: product.inStock
         });
         setShowProductModal(true);
@@ -118,20 +186,33 @@ const AdminDashboard = () => {
         }
     };
 
+    // Variant Handlers
+    const addVariant = () => {
+        setProductForm({
+            ...productForm,
+            variants: [...productForm.variants, { weight: '', price: '' }]
+        });
+    };
+
+    const removeVariant = (index) => {
+        const newVariants = [...productForm.variants];
+        newVariants.splice(index, 1);
+        setProductForm({ ...productForm, variants: newVariants });
+    };
+
+    const updateVariant = (index, field, value) => {
+        const newVariants = [...productForm.variants];
+        newVariants[index][field] = value;
+        setProductForm({ ...productForm, variants: newVariants });
+    };
+
+    // Category Handlers
     const handleAddCategory = async (e) => {
         e.preventDefault();
         if (!newCategory) return;
         const added = await categoryService.add({ name: newCategory, description: '' });
         setCategories([...categories, added]);
         setNewCategory('');
-    };
-
-    const handleAddBanner = async (e) => {
-        e.preventDefault();
-        if (!newBanner) return;
-        const added = await bannerService.add({ title: 'New Banner', image: newBanner, active: true });
-        setBanners([...banners, added]);
-        setNewBanner('');
     };
 
     const handleDeleteCategory = async (id) => {
@@ -141,6 +222,35 @@ const AdminDashboard = () => {
         }
     };
 
+    // Banner Handlers
+    const handleSaveBanner = async (e) => {
+        e.preventDefault();
+        if (!newBanner.image) return;
+
+        if (editingBanner) {
+            await bannerService.update(editingBanner.id, {
+                title: newBanner.title,
+                image: newBanner.image
+            });
+            alert('Banner updated');
+        } else {
+            await bannerService.add({
+                title: newBanner.title || 'New Banner',
+                image: newBanner.image,
+                active: true
+            });
+            alert('Banner added');
+        }
+        setNewBanner({ title: '', image: '' });
+        setEditingBanner(null);
+        fetchData();
+    };
+
+    const handleEditBanner = (banner) => {
+        setEditingBanner(banner);
+        setNewBanner({ title: banner.title || '', image: banner.image });
+    };
+
     const handleDeleteBanner = async (id) => {
         if (window.confirm('Delete this banner?')) {
             await bannerService.delete(id);
@@ -148,15 +258,46 @@ const AdminDashboard = () => {
         }
     };
 
-    const handleUpdateContent = async () => {
-        await contentService.updateAbout(aboutContent);
-        alert('Content updated successfully!');
+    // Shipping Handlers
+    const handleSaveShippingRate = async (e) => {
+        e.preventDefault();
+        if (!shippingForm.state || !shippingForm.fee) return;
+
+        const updatedRates = {
+            ...shippingRates,
+            [shippingForm.state]: Number(shippingForm.fee)
+        };
+
+        await shippingService.saveRates(updatedRates);
+        setShippingRates(updatedRates);
+        setShippingForm({ state: '', fee: '' });
+        alert('Shipping rate saved');
     };
 
-    const handleStatusUpdate = async (orderId, newStatus) => {
-        await orderService.updateOrderStatus(orderId, newStatus);
-        const updatedOrders = orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o);
-        setOrders(updatedOrders);
+    const handleDeleteShippingRate = async (state) => {
+        if (window.confirm(`Delete shipping rate for ${state}?`)) {
+            const updatedRates = { ...shippingRates };
+            delete updatedRates[state];
+            await shippingService.saveRates(updatedRates);
+            setShippingRates(updatedRates);
+        }
+    };
+
+    // Content Handlers
+    const handleUpdateContent = async () => {
+        const imagesArray = [
+            aboutForm.image1,
+            aboutForm.image2,
+            aboutForm.image3,
+            aboutForm.image4
+        ].map(url => url.trim()).filter(url => url);
+
+        await contentService.updateAbout({
+            text: aboutForm.text,
+            images: imagesArray
+        });
+        alert('Content updated successfully!');
+        fetchData();
     };
 
     // User Management Handlers
@@ -207,57 +348,11 @@ const AdminDashboard = () => {
         fetchData();
     };
 
-    const renderProducts = () => (
-        <div className="p-8">
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-[var(--color-secondary)]">Products</h2>
-                <Button size="sm" onClick={() => {
-                    setEditingProduct(null);
-                    setProductForm({ name: '', description: '', price: '', category: 'Namkeen', image: '', inStock: true });
-                    setShowProductModal(true);
-                }}>
-                    <Plus size={16} className="mr-2" />
-                    Add Product
-                </Button>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm border border-[var(--color-border)] overflow-hidden">
-                <table className="w-full text-left">
-                    <thead className="bg-gray-50 border-b border-[var(--color-border)]">
-                        <tr>
-                            <th className="p-4 font-medium text-[var(--color-text-muted)]">Product</th>
-                            <th className="p-4 font-medium text-[var(--color-text-muted)]">Category</th>
-                            <th className="p-4 font-medium text-[var(--color-text-muted)]">Price</th>
-                            <th className="p-4 font-medium text-[var(--color-text-muted)]">Stock</th>
-                            <th className="p-4 font-medium text-[var(--color-text-muted)]">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {products.map(product => (
-                            <tr key={product.id} className="border-b border-[var(--color-border)] hover:bg-gray-50">
-                                <td className="p-4 flex items-center">
-                                    <img src={product.image} alt="" className="w-10 h-10 rounded object-cover mr-3" />
-                                    <span className="font-medium">{product.name}</span>
-                                </td>
-                                <td className="p-4 text-[var(--color-text-muted)]">{product.category}</td>
-                                <td className="p-4 font-medium">₹{product.price}</td>
-                                <td className="p-4">
-                                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${product.inStock ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                        {product.inStock ? 'In Stock' : 'Out of Stock'}
-                                    </span>
-                                </td>
-                                <td className="p-4">
-                                    <div className="flex space-x-2">
-                                        <button onClick={() => handleEditProduct(product)} className="p-1 hover:text-[var(--color-primary)]"><Edit size={18} /></button>
-                                        <button onClick={() => handleDeleteProduct(product.id)} className="p-1 hover:text-[var(--color-danger)]"><Trash2 size={18} /></button>
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
+    const handleStatusUpdate = async (orderId, newStatus) => {
+        await orderService.updateOrderStatus(orderId, newStatus);
+        const updatedOrders = orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o);
+        setOrders(updatedOrders);
+    };
 
     const renderSidebar = () => (
         <div className="w-64 bg-white border-r border-[var(--color-border)] min-h-[calc(100vh-64px)] p-4">
@@ -269,6 +364,7 @@ const AdminDashboard = () => {
                     { id: 'users', icon: Users, label: 'Users' },
                     { id: 'categories', icon: Layers, label: 'Categories' },
                     { id: 'banners', icon: ImageIcon, label: 'Banners' },
+                    { id: 'shipping', icon: Truck, label: 'Shipping' },
                     { id: 'content', icon: FileText, label: 'Content' },
                 ].map(item => (
                     <button
@@ -310,8 +406,59 @@ const AdminDashboard = () => {
         </div>
     );
 
+    const renderProducts = () => (
+        <div className="p-8">
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-[var(--color-secondary)]">Products</h2>
+                <Button size="sm" onClick={() => {
+                    setEditingProduct(null);
+                    resetProductForm();
+                    setShowProductModal(true);
+                }}>
+                    <Plus size={16} className="mr-2" />
+                    Add Product
+                </Button>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-[var(--color-border)] overflow-hidden">
+                <table className="w-full">
+                    <thead className="bg-gray-50 border-b border-[var(--color-border)]">
+                        <tr>
+                            <th className="text-left p-4 font-medium text-[var(--color-text-muted)]">Product</th>
+                            <th className="text-left p-4 font-medium text-[var(--color-text-muted)]">Category</th>
+                            <th className="text-left p-4 font-medium text-[var(--color-text-muted)]">Price</th>
+                            <th className="text-left p-4 font-medium text-[var(--color-text-muted)]">Stock</th>
+                            <th className="text-left p-4 font-medium text-[var(--color-text-muted)]">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {products.map(product => (
+                            <tr key={product.id} className="border-b border-[var(--color-border)] hover:bg-gray-50">
+                                <td className="p-4 flex items-center">
+                                    <img src={product.image} alt={product.name} className="w-10 h-10 rounded-md object-cover mr-3" />
+                                    <span className="font-medium">{product.name}</span>
+                                </td>
+                                <td className="p-4 text-[var(--color-text-muted)]">{product.category}</td>
+                                <td className="p-4 font-medium">₹{product.price}</td>
+                                <td className="p-4">
+                                    <span className={`px-2 py-1 rounded-full text-xs ${product.inStock ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                        {product.inStock ? 'In Stock' : 'Out of Stock'}
+                                    </span>
+                                </td>
+                                <td className="p-4">
+                                    <div className="flex space-x-2">
+                                        <button onClick={() => handleEditProduct(product)} className="p-1 hover:text-[var(--color-primary)]"><Edit size={18} /></button>
+                                        <button onClick={() => handleDeleteProduct(product.id)} className="p-1 hover:text-[var(--color-danger)]"><Trash2 size={18} /></button>
+                                    </div>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+
     const renderOrders = () => {
-        const rawOrders = localStorage.getItem('toi_orders');
         return (
             <div className="p-8">
                 <div className="flex justify-between items-center mb-6">
@@ -323,50 +470,48 @@ const AdminDashboard = () => {
                         <Button size="sm" variant="ghost" onClick={() => {
                             setLoading(true);
                             fetchData();
-                        }}>
-                            Refresh Orders
-                        </Button>
+                        }}>Refresh</Button>
                     </div>
                 </div>
-
-
-
                 <div className="bg-white rounded-xl shadow-sm border border-[var(--color-border)] overflow-hidden">
-                    <table className="w-full text-left">
+                    <table className="w-full">
                         <thead className="bg-gray-50 border-b border-[var(--color-border)]">
                             <tr>
-                                <th className="p-4 font-medium text-[var(--color-text-muted)]">Order ID</th>
-                                <th className="p-4 font-medium text-[var(--color-text-muted)]">Customer</th>
-                                <th className="p-4 font-medium text-[var(--color-text-muted)]">Date</th>
-                                <th className="p-4 font-medium text-[var(--color-text-muted)]">Total</th>
-                                <th className="p-4 font-medium text-[var(--color-text-muted)]">Status</th>
-                                <th className="p-4 font-medium text-[var(--color-text-muted)]">Actions</th>
+                                <th className="text-left p-4 font-medium text-[var(--color-text-muted)]">Order ID</th>
+                                <th className="text-left p-4 font-medium text-[var(--color-text-muted)]">Customer</th>
+                                <th className="text-left p-4 font-medium text-[var(--color-text-muted)]">Date</th>
+                                <th className="text-left p-4 font-medium text-[var(--color-text-muted)]">Total</th>
+                                <th className="text-left p-4 font-medium text-[var(--color-text-muted)]">Status</th>
+                                <th className="text-left p-4 font-medium text-[var(--color-text-muted)]">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {orders.length === 0 ? (
                                 <tr>
-                                    <td colSpan="6" className="p-8 text-center text-[var(--color-text-muted)]">
-                                        No orders found.
-                                    </td>
+                                    <td colSpan="6" className="p-8 text-center text-gray-500">No orders found.</td>
                                 </tr>
                             ) : (
                                 orders.map(order => (
                                     <tr key={order.id} className="border-b border-[var(--color-border)] hover:bg-gray-50">
-                                        <td className="p-4 font-medium">{order.id}</td>
-                                        <td className="p-4">{order.customer}</td>
-                                        <td className="p-4 text-[var(--color-text-muted)]">{order.date}</td>
-                                        <td className="p-4 font-medium">₹{order.total}</td>
+                                        <td className="p-4 font-medium text-[var(--color-primary)]">{order.id.slice(0, 8)}...</td>
+                                        <td className="p-4">
+                                            <div className="font-medium">{order.customer}</div>
+                                            <div className="text-xs text-gray-500">{order.email}</div>
+                                        </td>
+                                        <td className="p-4 text-gray-600">{order.date}</td>
+                                        <td className="p-4 font-bold">₹{order.total}</td>
                                         <td className="p-4">
                                             <select
                                                 value={order.status}
                                                 onChange={(e) => handleStatusUpdate(order.id, e.target.value)}
-                                                className={`px-2 py-1 rounded-full text-xs font-bold border-none cursor-pointer focus:ring-2 focus:ring-[var(--color-primary)]
-                                                ${order.status === 'Delivered' ? 'bg-green-100 text-green-700' :
+                                                className={`px-3 py-1 rounded-full text-xs font-bold border-none outline-none cursor-pointer
+                                                    ${order.status === 'Delivered' ? 'bg-green-100 text-green-700' :
                                                         order.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
-                                                            'bg-blue-100 text-blue-700'}`}
+                                                            order.status === 'Cancelled' ? 'bg-red-100 text-red-700' :
+                                                                'bg-blue-100 text-blue-700'}`}
                                             >
                                                 <option value="Pending">Pending</option>
+                                                <option value="Processing">Processing</option>
                                                 <option value="Shipped">Shipped</option>
                                                 <option value="Delivered">Delivered</option>
                                                 <option value="Cancelled">Cancelled</option>
@@ -399,22 +544,22 @@ const AdminDashboard = () => {
                 </Button>
             </div>
             <div className="bg-white rounded-xl shadow-sm border border-[var(--color-border)] overflow-hidden">
-                <table className="w-full text-left">
+                <table className="w-full">
                     <thead className="bg-gray-50 border-b border-[var(--color-border)]">
                         <tr>
-                            <th className="p-4 font-medium text-[var(--color-text-muted)]">Name</th>
-                            <th className="p-4 font-medium text-[var(--color-text-muted)]">Email</th>
-                            <th className="p-4 font-medium text-[var(--color-text-muted)]">Role</th>
-                            <th className="p-4 font-medium text-[var(--color-text-muted)]">Actions</th>
+                            <th className="text-left p-4 font-medium text-[var(--color-text-muted)]">Name</th>
+                            <th className="text-left p-4 font-medium text-[var(--color-text-muted)]">Email</th>
+                            <th className="text-left p-4 font-medium text-[var(--color-text-muted)]">Role</th>
+                            <th className="text-left p-4 font-medium text-[var(--color-text-muted)]">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {users.map(user => (
                             <tr key={user.id} className="border-b border-[var(--color-border)] hover:bg-gray-50">
                                 <td className="p-4 font-medium">{user.name}</td>
-                                <td className="p-4">{user.email}</td>
-                                <td className="p-4 capitalize">
-                                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                                <td className="p-4 text-gray-600">{user.email}</td>
+                                <td className="p-4">
+                                    <span className={`px-2 py-1 rounded-full text-xs capitalize ${user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'}`}>
                                         {user.role}
                                     </span>
                                 </td>
@@ -467,14 +612,32 @@ const AdminDashboard = () => {
     const renderBanners = () => (
         <div className="p-8">
             <h2 className="text-2xl font-bold text-[var(--color-secondary)] mb-6">Banners</h2>
-            <div className="mb-6 flex gap-4">
-                <Input
-                    placeholder="Banner Image URL"
-                    value={newBanner}
-                    onChange={(e) => setNewBanner(e.target.value)}
-                    className="flex-grow"
-                />
-                <Button onClick={handleAddBanner}>Add Banner</Button>
+            <div className="mb-6 flex gap-4 items-end bg-white p-4 rounded-lg border border-[var(--color-border)]">
+                <div className="flex-grow space-y-2">
+                    <Input
+                        label="Banner Title"
+                        placeholder="e.g. Summer Sale"
+                        value={newBanner.title}
+                        onChange={(e) => setNewBanner({ ...newBanner, title: e.target.value })}
+                    />
+                    <Input
+                        label="Image URL"
+                        placeholder="https://example.com/banner.jpg"
+                        value={newBanner.image}
+                        onChange={(e) => setNewBanner({ ...newBanner, image: e.target.value })}
+                    />
+                </div>
+                <div className="flex gap-2">
+                    <Button onClick={handleSaveBanner}>
+                        {editingBanner ? 'Update Banner' : 'Add Banner'}
+                    </Button>
+                    {editingBanner && (
+                        <Button variant="ghost" onClick={() => {
+                            setEditingBanner(null);
+                            setNewBanner({ title: '', image: '' });
+                        }}>Cancel</Button>
+                    )}
+                </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {banners.map(banner => (
@@ -482,8 +645,48 @@ const AdminDashboard = () => {
                         <img src={banner.image} alt={banner.title} className="w-full h-40 object-cover rounded-md mb-4" />
                         <div className="flex justify-between items-center">
                             <span className="font-medium">{banner.title}</span>
-                            <button onClick={() => handleDeleteBanner(banner.id)} className="text-red-500 hover:text-red-700"><Trash2 size={18} /></button>
+                            <div className="flex gap-2">
+                                <button onClick={() => handleEditBanner(banner)} className="text-blue-500 hover:text-blue-700"><Edit size={18} /></button>
+                                <button onClick={() => handleDeleteBanner(banner.id)} className="text-red-500 hover:text-red-700"><Trash2 size={18} /></button>
+                            </div>
                         </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+
+    const renderShipping = () => (
+        <div className="p-8">
+            <h2 className="text-2xl font-bold text-[var(--color-secondary)] mb-6">Shipping Rates</h2>
+            <div className="mb-6 flex gap-4 items-end bg-white p-4 rounded-lg border border-[var(--color-border)]">
+                <div className="flex-grow grid grid-cols-2 gap-4">
+                    <Input
+                        label="State Name"
+                        placeholder="e.g. Madhya Pradesh"
+                        value={shippingForm.state}
+                        onChange={(e) => setShippingForm({ ...shippingForm, state: e.target.value })}
+                    />
+                    <Input
+                        label="Delivery Fee (₹)"
+                        type="number"
+                        placeholder="50"
+                        value={shippingForm.fee}
+                        onChange={(e) => setShippingForm({ ...shippingForm, fee: e.target.value })}
+                    />
+                </div>
+                <Button onClick={handleSaveShippingRate}>Save Rate</Button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {Object.entries(shippingRates).map(([state, fee]) => (
+                    <div key={state} className="bg-white p-4 rounded-lg shadow-sm border border-[var(--color-border)] flex justify-between items-center">
+                        <div>
+                            <div className="font-bold">{state}</div>
+                            <div className="text-sm text-gray-500">Delivery: ₹{fee}</div>
+                        </div>
+                        <button onClick={() => handleDeleteShippingRate(state)} className="text-red-500 hover:text-red-700">
+                            <Trash2 size={18} />
+                        </button>
                     </div>
                 ))}
             </div>
@@ -495,91 +698,55 @@ const AdminDashboard = () => {
             <h2 className="text-2xl font-bold text-[var(--color-secondary)] mb-6">Content Management</h2>
             <div className="bg-white p-6 rounded-xl shadow-sm border border-[var(--color-border)]">
                 <h3 className="text-lg font-bold mb-4">About Us Page Content</h3>
+                <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1">Text Content</label>
                 <textarea
                     className="w-full h-40 p-4 border border-[var(--color-border)] rounded-md mb-4 focus:ring-2 focus:ring-[var(--color-primary)] focus:outline-none"
-                    value={aboutContent}
-                    onChange={(e) => setAboutContent(e.target.value)}
+                    value={aboutForm.text}
+                    onChange={(e) => setAboutForm({ ...aboutForm, text: e.target.value })}
                 />
+                <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-2">Images (Up to 4)</label>
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                    <Input
+                        placeholder="Image URL 1"
+                        value={aboutForm.image1}
+                        onChange={(e) => setAboutForm({ ...aboutForm, image1: e.target.value })}
+                    />
+                    <Input
+                        placeholder="Image URL 2"
+                        value={aboutForm.image2}
+                        onChange={(e) => setAboutForm({ ...aboutForm, image2: e.target.value })}
+                    />
+                    <Input
+                        placeholder="Image URL 3"
+                        value={aboutForm.image3}
+                        onChange={(e) => setAboutForm({ ...aboutForm, image3: e.target.value })}
+                    />
+                    <Input
+                        placeholder="Image URL 4"
+                        value={aboutForm.image4}
+                        onChange={(e) => setAboutForm({ ...aboutForm, image4: e.target.value })}
+                    />
+                </div>
                 <Button onClick={handleUpdateContent}>Update Content</Button>
             </div>
         </div>
     );
 
     return (
-        <div className="flex relative">
+        <div className="flex min-h-screen bg-gray-50">
             {renderSidebar()}
-            <div className="flex-grow bg-gray-50">
+            <div className="flex-1 overflow-y-auto h-screen">
                 {activeTab === 'dashboard' && renderDashboard()}
                 {activeTab === 'products' && renderProducts()}
                 {activeTab === 'orders' && renderOrders()}
                 {activeTab === 'users' && renderUsers()}
                 {activeTab === 'categories' && renderCategories()}
                 {activeTab === 'banners' && renderBanners()}
+                {activeTab === 'shipping' && renderShipping()}
                 {activeTab === 'content' && renderContent()}
             </div>
-            <OrderDetailsModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />
 
-            {/* User Management Modal */}
-            <AnimatePresence>
-                {showUserModal && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.9 }}
-                            className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl relative"
-                        >
-                            <button
-                                onClick={() => setShowUserModal(false)}
-                                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-                            >
-                                <X size={24} />
-                            </button>
-                            <h3 className="text-2xl font-bold text-[var(--color-secondary)] mb-4">
-                                {editingUser ? 'Edit User' : 'Add New User'}
-                            </h3>
-                            <form onSubmit={handleUserSubmit} className="space-y-4">
-                                <Input
-                                    label="Full Name"
-                                    value={userForm.name}
-                                    onChange={(e) => setUserForm({ ...userForm, name: e.target.value })}
-                                    required
-                                />
-                                <Input
-                                    label="Email Address"
-                                    type="email"
-                                    value={userForm.email}
-                                    onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
-                                    required
-                                />
-                                <Input
-                                    label="Password"
-                                    type="password"
-                                    value={userForm.password}
-                                    onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
-                                    required
-                                />
-                                <div>
-                                    <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1">Role</label>
-                                    <select
-                                        value={userForm.role}
-                                        onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
-                                        className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none transition-all"
-                                    >
-                                        <option value="customer">Customer</option>
-                                        <option value="admin">Admin</option>
-                                    </select>
-                                </div>
-                                <Button type="submit" className="w-full">
-                                    {editingUser ? 'Update User' : 'Create User'}
-                                </Button>
-                            </form>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
-
-            {/* Product Management Modal */}
+            {/* Product Modal */}
             <AnimatePresence>
                 {showProductModal && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -587,7 +754,7 @@ const AdminDashboard = () => {
                             initial={{ opacity: 0, scale: 0.9 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.9 }}
-                            className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl relative max-h-[90vh] overflow-y-auto"
+                            className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-xl relative max-h-[90vh] overflow-y-auto"
                         >
                             <button
                                 onClick={() => setShowProductModal(false)}
@@ -595,47 +762,97 @@ const AdminDashboard = () => {
                             >
                                 <X size={24} />
                             </button>
-                            <h3 className="text-2xl font-bold text-[var(--color-secondary)] mb-4">
+                            <h3 className="text-2xl font-bold text-[var(--color-secondary)] mb-6">
                                 {editingProduct ? 'Edit Product' : 'Add New Product'}
                             </h3>
                             <form onSubmit={handleProductSubmit} className="space-y-4">
-                                <Input
-                                    label="Product Name"
-                                    value={productForm.name}
-                                    onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
-                                    required
-                                />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <Input
+                                        label="Product Name"
+                                        value={productForm.name}
+                                        onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
+                                        required
+                                    />
+                                    <div>
+                                        <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1">Category</label>
+                                        <select
+                                            className="w-full p-3 border border-[var(--color-border)] rounded-lg focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none"
+                                            value={productForm.category}
+                                            onChange={(e) => setProductForm({ ...productForm, category: e.target.value })}
+                                        >
+                                            {categories.map(cat => (
+                                                <option key={cat.id} value={cat.name}>{cat.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
                                 <Input
                                     label="Description"
                                     value={productForm.description}
                                     onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
                                     required
                                 />
-                                <Input
-                                    label="Price"
-                                    type="number"
-                                    value={productForm.price}
-                                    onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
-                                    required
-                                />
-                                <div>
-                                    <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1">Category</label>
-                                    <select
-                                        value={productForm.category}
-                                        onChange={(e) => setProductForm({ ...productForm, category: e.target.value })}
-                                        className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none transition-all"
-                                    >
-                                        {categories.map(cat => (
-                                            <option key={cat.id} value={cat.name}>{cat.name}</option>
-                                        ))}
-                                    </select>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <Input
+                                        label="Base Price (₹)"
+                                        type="number"
+                                        value={productForm.price}
+                                        onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
+                                        required
+                                    />
                                 </div>
-                                <Input
-                                    label="Image URL"
-                                    value={productForm.image}
-                                    onChange={(e) => setProductForm({ ...productForm, image: e.target.value })}
-                                    required
-                                />
+
+                                <div className="space-y-2">
+                                    <label className="block text-sm font-medium text-[var(--color-text-muted)]">Product Images (First one is main)</label>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <Input
+                                            placeholder="Image URL 1 (Main)"
+                                            value={productForm.image1}
+                                            onChange={(e) => setProductForm({ ...productForm, image1: e.target.value })}
+                                        />
+                                        <Input
+                                            placeholder="Image URL 2"
+                                            value={productForm.image2}
+                                            onChange={(e) => setProductForm({ ...productForm, image2: e.target.value })}
+                                        />
+                                        <Input
+                                            placeholder="Image URL 3"
+                                            value={productForm.image3}
+                                            onChange={(e) => setProductForm({ ...productForm, image3: e.target.value })}
+                                        />
+                                        <Input
+                                            placeholder="Image URL 4"
+                                            value={productForm.image4}
+                                            onChange={(e) => setProductForm({ ...productForm, image4: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div className="flex justify-between items-center mb-2">
+                                        <label className="block text-sm font-medium text-[var(--color-text-muted)]">Variants (Optional)</label>
+                                        <Button type="button" size="sm" variant="outline" onClick={addVariant}>Add Variant</Button>
+                                    </div>
+                                    {productForm.variants.map((variant, index) => (
+                                        <div key={index} className="flex gap-2 mb-2 items-center">
+                                            <Input
+                                                placeholder="Weight (e.g. 500g)"
+                                                value={variant.weight}
+                                                onChange={(e) => updateVariant(index, 'weight', e.target.value)}
+                                            />
+                                            <Input
+                                                placeholder="Price (₹)"
+                                                type="number"
+                                                value={variant.price}
+                                                onChange={(e) => updateVariant(index, 'price', e.target.value)}
+                                            />
+                                            <button type="button" onClick={() => removeVariant(index)} className="text-red-500">
+                                                <MinusCircle size={18} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+
                                 <div className="flex items-center">
                                     <input
                                         type="checkbox"
@@ -654,6 +871,68 @@ const AdminDashboard = () => {
                     </div>
                 )}
             </AnimatePresence>
+
+            {/* User Modal */}
+            <AnimatePresence>
+                {showUserModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl relative"
+                        >
+                            <button
+                                onClick={() => setShowUserModal(false)}
+                                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+                            >
+                                <X size={24} />
+                            </button>
+                            <h3 className="text-2xl font-bold text-[var(--color-secondary)] mb-6">
+                                {editingUser ? 'Edit User' : 'Add New User'}
+                            </h3>
+                            <form onSubmit={handleUserSubmit} className="space-y-4">
+                                <Input
+                                    label="Full Name"
+                                    value={userForm.name}
+                                    onChange={(e) => setUserForm({ ...userForm, name: e.target.value })}
+                                    required
+                                />
+                                <Input
+                                    label="Email"
+                                    type="email"
+                                    value={userForm.email}
+                                    onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
+                                    required
+                                />
+                                <Input
+                                    label="Password"
+                                    type="password"
+                                    value={userForm.password}
+                                    onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
+                                    required={!editingUser}
+                                    placeholder={editingUser ? "Leave blank to keep current" : ""}
+                                />
+                                <div>
+                                    <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1">Role</label>
+                                    <select
+                                        className="w-full p-3 border border-[var(--color-border)] rounded-lg focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent outline-none"
+                                        value={userForm.role}
+                                        onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
+                                    >
+                                        <option value="customer">Customer</option>
+                                        <option value="admin">Admin</option>
+                                    </select>
+                                </div>
+                                <Button type="submit" className="w-full">
+                                    {editingUser ? 'Update User' : 'Create User'}
+                                </Button>
+                            </form>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+            <OrderDetailsModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />
         </div>
     );
 };

@@ -93,5 +93,46 @@ export const authService = {
 
   deleteUser: async (id) => {
     await deleteDoc(doc(db, 'users', id));
+  },
+
+  // Address Management
+  saveAddress: async (userId, address) => {
+    const userRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userRef);
+    if (userDoc.exists()) {
+      const userData = userDoc.data();
+      const addresses = userData.addresses || [];
+      // Check if address already exists (simple check)
+      const exists = addresses.some(a => a.address === address.address && a.pincode === address.pincode);
+      if (!exists) {
+        const newAddresses = [...addresses, { ...address, id: Date.now() }];
+        await updateDoc(userRef, { addresses: newAddresses });
+        return newAddresses;
+      }
+      return addresses;
+    }
+    return [];
+  },
+
+  getAddresses: async (userId) => {
+    const userRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userRef);
+    if (userDoc.exists()) {
+      return userDoc.data().addresses || [];
+    }
+    return [];
+  },
+
+  removeAddress: async (userId, addressId) => {
+    const userRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userRef);
+    if (userDoc.exists()) {
+      const userData = userDoc.data();
+      const addresses = userData.addresses || [];
+      const newAddresses = addresses.filter(a => a.id !== addressId);
+      await updateDoc(userRef, { addresses: newAddresses });
+      return newAddresses;
+    }
+    return [];
   }
 };
