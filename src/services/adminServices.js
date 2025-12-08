@@ -121,3 +121,29 @@ export const contentService = {
         }
     }
 };
+
+// Payment Settings
+export const paymentService = {
+    getSettings: async () => {
+        try {
+            const docRef = doc(db, 'config', 'payment');
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                return docSnap.data();
+            }
+            return { upiId: '', qrCode: '' };
+        } catch (error) {
+            console.error("Error getting payment settings: ", error);
+            return { upiId: '', qrCode: '' };
+        }
+    },
+    saveSettings: async (settings) => {
+        try {
+            await setDoc(doc(db, 'config', 'payment'), settings);
+        } catch (error) {
+            console.error("Error saving payment settings: ", error);
+            throw error;
+        }
+    }
+};
+

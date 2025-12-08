@@ -4,7 +4,7 @@ import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { orderService } from '../services/orderService';
 import { authService } from '../services/authService';
-import { shippingService } from '../services/adminServices';
+import { shippingService, paymentService } from '../services/adminServices';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -23,6 +23,7 @@ const Checkout = () => {
     const [showAddressModal, setShowAddressModal] = useState(false);
     const [shippingRates, setShippingRates] = useState({});
     const [deliveryFee, setDeliveryFee] = useState(0);
+    const [paymentConfig, setPaymentConfig] = useState({ upiId: CONFIG.UPI_ID, qrCode: '' });
 
     const [formData, setFormData] = useState({
         name: user?.name || '',
@@ -39,6 +40,7 @@ const Checkout = () => {
             fetchAddresses();
         }
         fetchShippingRates();
+        fetchPaymentSettings();
     }, [user]);
 
     // Recalculate delivery fee when state changes
@@ -60,6 +62,13 @@ const Checkout = () => {
     const fetchShippingRates = async () => {
         const rates = await shippingService.getRates();
         setShippingRates(rates);
+    };
+
+    const fetchPaymentSettings = async () => {
+        const settings = await paymentService.getSettings();
+        if (settings && settings.upiId) {
+            setPaymentConfig(settings);
+        }
     };
 
     // Logic: If total > threshold, free shipping? 
@@ -147,7 +156,7 @@ const Checkout = () => {
     };
 
     const handleUpiPayment = () => {
-        window.open(`upi://pay?pa=${CONFIG.UPI_ID}&pn=TheTasteOfIndore&am=${finalTotal}&cu=INR`, '_blank');
+        window.open(`upi://pay?pa=${paymentConfig.upiId}&pn=TheTasteOfIndore&am=${finalTotal}&cu=INR`, '_blank');
     };
 
     return (
@@ -387,6 +396,16 @@ const Checkout = () => {
                             <p className="text-gray-600 mb-6">
                                 Please complete the payment using your preferred UPI app.
                             </p>
+
+                            {paymentConfig.qrCode && (
+                                <div className="mb-6 flex justify-center">
+                                    <img
+                                        src={paymentConfig.qrCode}
+                                        alt="Payment QR Code"
+                                        className="w-48 h-48 object-contain border border-gray-200 rounded-lg"
+                                    />
+                                </div>
+                            )}
 
                             <div className="mb-6 text-center">
                                 <div className="text-3xl font-bold text-[var(--color-primary)] mb-2">₹{finalTotal}</div>

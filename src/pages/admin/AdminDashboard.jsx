@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { productService } from '../../services/productService';
 import { orderService } from '../../services/orderService';
-import { categoryService, bannerService, contentService, shippingService } from '../../services/adminServices';
+import { categoryService, bannerService, contentService, shippingService, paymentService } from '../../services/adminServices';
 import { authService } from '../../services/authService';
 import Button from '../../components/Button';
 import Input from '../../components/Input';
 import OrderDetailsModal from '../../components/OrderDetailsModal';
-import { LayoutDashboard, Package, ShoppingBag, Users, Plus, Edit, Trash2, Layers, Image as ImageIcon, FileText, X, MinusCircle, Truck } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingBag, Users, Plus, Edit, Trash2, Layers, Image as ImageIcon, FileText, X, MinusCircle, Truck, CreditCard } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const AdminDashboard = () => {
@@ -18,6 +18,7 @@ const AdminDashboard = () => {
     const [banners, setBanners] = useState([]);
     const [aboutContent, setAboutContent] = useState({ text: '', images: [] });
     const [shippingRates, setShippingRates] = useState({});
+    const [paymentSettings, setPaymentSettings] = useState({ upiId: '', qrCode: '' });
     const [loading, setLoading] = useState(true);
     const [selectedOrder, setSelectedOrder] = useState(null);
 
@@ -85,7 +86,9 @@ const AdminDashboard = () => {
                 categoryService.getAll(),
                 bannerService.getAll(),
                 contentService.getAbout(),
-                shippingService.getRates()
+                contentService.getAbout(),
+                shippingService.getRates(),
+                paymentService.getSettings()
             ]);
             console.log('AdminDashboard: Orders fetched:', o);
             setProducts(p);
@@ -95,6 +98,7 @@ const AdminDashboard = () => {
             setBanners(b);
             setAboutContent(a || { text: '', images: [] });
             setShippingRates(s || {});
+            setPaymentSettings(p[7] || { upiId: '', qrCode: '' }); // Access result from Promise.all array
         } catch (error) {
             console.error('Error fetching admin data:', error);
         } finally {
@@ -366,6 +370,7 @@ const AdminDashboard = () => {
                     { id: 'banners', icon: ImageIcon, label: 'Banners' },
                     { id: 'shipping', icon: Truck, label: 'Shipping' },
                     { id: 'content', icon: FileText, label: 'Content' },
+                    { id: 'payment', icon: CreditCard, label: 'Payment' },
                 ].map(item => (
                     <button
                         key={item.id}
@@ -732,6 +737,49 @@ const AdminDashboard = () => {
         </div>
     );
 
+    const handleSavePayment = async () => {
+        try {
+            await paymentService.saveSettings(paymentSettings);
+            alert('Payment settings saved successfully!');
+        } catch (error) {
+            alert('Failed to save payment settings');
+        }
+    };
+
+    const renderPayment = () => (
+        <div className="p-8">
+            <h2 className="text-2xl font-bold text-[var(--color-secondary)] mb-6">Payment Configuration</h2>
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-[var(--color-border)] max-w-2xl">
+                <div className="space-y-4">
+                    <Input
+                        label="UPI ID (VPA)"
+                        placeholder="e.g. merchant@upi"
+                        value={paymentSettings.upiId}
+                        onChange={(e) => setPaymentSettings({ ...paymentSettings, upiId: e.target.value })}
+                    />
+                    <Input
+                        label="QR Code Image URL"
+                        placeholder="https://example.com/qr-code.png"
+                        value={paymentSettings.qrCode}
+                        onChange={(e) => setPaymentSettings({ ...paymentSettings, qrCode: e.target.value })}
+                    />
+                    {paymentSettings.qrCode && (
+                        <div className="mt-4">
+                            <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-2">Preview</label>
+                            <img
+                                src={paymentSettings.qrCode}
+                                alt="QR Code Preview"
+                                className="w-48 h-48 object-contain border border-gray-200 rounded-lg"
+                                onError={(e) => e.target.style.display = 'none'}
+                            />
+                        </div>
+                    )}
+                    <Button onClick={handleSavePayment} className="mt-4">Save Settings</Button>
+                </div>
+            </div>
+        </div>
+    );
+
     return (
         <div className="flex min-h-screen bg-gray-50">
             {renderSidebar()}
@@ -744,6 +792,7 @@ const AdminDashboard = () => {
                 {activeTab === 'banners' && renderBanners()}
                 {activeTab === 'shipping' && renderShipping()}
                 {activeTab === 'content' && renderContent()}
+                {activeTab === 'payment' && renderPayment()}
             </div>
 
             {/* Product Modal */}
