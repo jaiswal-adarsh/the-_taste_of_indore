@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { productService } from '../../services/productService';
 import { orderService } from '../../services/orderService';
-import { categoryService, bannerService, contentService, shippingService, paymentService } from '../../services/adminServices';
+import { categoryService, bannerService, contentService, shippingService, paymentService, brandingService } from '../../services/adminServices';
 import { authService } from '../../services/authService';
 import Button from '../../components/Button';
 import Input from '../../components/Input';
 import OrderDetailsModal from '../../components/OrderDetailsModal';
-import { LayoutDashboard, Package, ShoppingBag, Users, Plus, Edit, Trash2, Layers, Image as ImageIcon, FileText, X, MinusCircle, Truck, CreditCard } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingBag, Users, Plus, Edit, Trash2, Layers, Image as ImageIcon, FileText, X, MinusCircle, Truck, CreditCard, Palette } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const AdminDashboard = () => {
@@ -19,6 +19,7 @@ const AdminDashboard = () => {
     const [aboutContent, setAboutContent] = useState({ text: '', images: [] });
     const [shippingRates, setShippingRates] = useState({});
     const [paymentSettings, setPaymentSettings] = useState({ upiId: '', qrCode: '', customLink: '' });
+    const [brandingSettings, setBrandingSettings] = useState({ favicon: '' });
     const [loading, setLoading] = useState(true);
     const [selectedOrder, setSelectedOrder] = useState(null);
 
@@ -79,7 +80,7 @@ const AdminDashboard = () => {
     const fetchData = async () => {
         try {
             console.log('AdminDashboard: Fetching data...');
-            const [p, o, u, c, b, a, s, pay] = await Promise.all([
+            const [p, o, u, c, b, a, s, pay, brand] = await Promise.all([
                 productService.getAllProducts(),
                 orderService.getAllOrders(),
                 authService.getAllUsers(),
@@ -87,7 +88,8 @@ const AdminDashboard = () => {
                 bannerService.getAll(),
                 contentService.getAbout(),
                 shippingService.getRates(),
-                paymentService.getSettings()
+                paymentService.getSettings(),
+                brandingService.getSettings()
             ]);
             console.log('AdminDashboard: Orders fetched:', o);
             setProducts(p);
@@ -98,6 +100,7 @@ const AdminDashboard = () => {
             setAboutContent(a || { text: '', images: [] });
             setShippingRates(s || {});
             setPaymentSettings(pay || { upiId: '', qrCode: '', customLink: '' });
+            setBrandingSettings(brand || { favicon: '' });
         } catch (error) {
             console.error('Error fetching admin data:', error);
         } finally {
@@ -370,6 +373,7 @@ const AdminDashboard = () => {
                     { id: 'shipping', icon: Truck, label: 'Shipping' },
                     { id: 'content', icon: FileText, label: 'Content' },
                     { id: 'payment', icon: CreditCard, label: 'Payment' },
+                    { id: 'branding', icon: Palette, label: 'Branding' },
                 ].map(item => (
                     <button
                         key={item.id}
@@ -788,6 +792,43 @@ const AdminDashboard = () => {
         </div>
     );
 
+    const handleSaveBranding = async () => {
+        try {
+            await brandingService.saveSettings(brandingSettings);
+            alert('Branding settings saved successfully!');
+        } catch (error) {
+            alert('Failed to save branding settings');
+        }
+    };
+
+    const renderBranding = () => (
+        <div className="p-8">
+            <h2 className="text-2xl font-bold text-[var(--color-secondary)] mb-6">Branding Configuration</h2>
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-[var(--color-border)] max-w-2xl">
+                <div className="space-y-4">
+                    <Input
+                        label="Favicon URL"
+                        placeholder="https://example.com/favicon.ico"
+                        value={brandingSettings.favicon}
+                        onChange={(e) => setBrandingSettings({ ...brandingSettings, favicon: e.target.value })}
+                    />
+                    {brandingSettings.favicon && (
+                        <div className="mt-4">
+                            <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-2">Preview</label>
+                            <img
+                                src={brandingSettings.favicon}
+                                alt="Favicon Preview"
+                                className="w-16 h-16 object-contain border border-gray-200 rounded-lg"
+                                onError={(e) => e.target.style.display = 'none'}
+                            />
+                        </div>
+                    )}
+                    <Button onClick={handleSaveBranding} className="mt-4">Save Settings</Button>
+                </div>
+            </div>
+        </div>
+    );
+
     return (
         <div className="flex min-h-screen bg-gray-50">
             {renderSidebar()}
@@ -801,10 +842,11 @@ const AdminDashboard = () => {
                 {activeTab === 'shipping' && renderShipping()}
                 {activeTab === 'content' && renderContent()}
                 {activeTab === 'payment' && renderPayment()}
+                {activeTab === 'branding' && renderBranding()}
             </div>
 
             {/* Product Modal */}
-            <AnimatePresence>
+            < AnimatePresence >
                 {showProductModal && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
                         <motion.div
@@ -927,10 +969,10 @@ const AdminDashboard = () => {
                         </motion.div>
                     </div>
                 )}
-            </AnimatePresence>
+            </AnimatePresence >
 
             {/* User Modal */}
-            <AnimatePresence>
+            < AnimatePresence >
                 {showUserModal && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
                         <motion.div
@@ -988,9 +1030,9 @@ const AdminDashboard = () => {
                         </motion.div>
                     </div>
                 )}
-            </AnimatePresence>
+            </AnimatePresence >
             <OrderDetailsModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />
-        </div>
+        </div >
     );
 };
 

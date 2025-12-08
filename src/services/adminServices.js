@@ -147,3 +147,28 @@ export const paymentService = {
     }
 };
 
+// Branding Settings
+export const brandingService = {
+    getSettings: async () => {
+        try {
+            const docRef = doc(db, 'config', 'branding');
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                return docSnap.data();
+            }
+            return { favicon: '' };
+        } catch (error) {
+            console.error("Error getting branding settings: ", error);
+            return { favicon: '' };
+        }
+    },
+    saveSettings: async (settings) => {
+        try {
+            await setDoc(doc(db, 'config', 'branding'), settings);
+        } catch (error) {
+            console.error("Error saving branding settings: ", error);
+            throw error;
+        }
+    }
+};
+

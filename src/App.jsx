@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { brandingService } from './services/adminServices';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
@@ -35,6 +36,20 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
 };
 
 function App() {
+  useEffect(() => {
+    const fetchBranding = async () => {
+      const settings = await brandingService.getSettings();
+      if (settings && settings.favicon) {
+        const link = document.querySelector("link[rel*='icon']") || document.createElement('link');
+        link.type = 'image/x-icon';
+        link.rel = 'shortcut icon';
+        link.href = settings.favicon;
+        document.getElementsByTagName('head')[0].appendChild(link);
+      }
+    };
+    fetchBranding();
+  }, []);
+
   return (
     <AuthProvider>
       <CartProvider>
