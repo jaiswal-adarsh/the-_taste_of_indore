@@ -156,7 +156,11 @@ const Checkout = () => {
     };
 
     const handleUpiPayment = () => {
-        window.open(`upi://pay?pa=${paymentConfig.upiId}&pn=TheTasteOfIndore&am=${finalTotal}&cu=INR`, '_blank');
+        if (paymentConfig.customLink) {
+            window.open(paymentConfig.customLink, '_blank');
+        } else {
+            window.open(`upi://pay?pa=${paymentConfig.upiId}&pn=TheTasteOfIndore&am=${finalTotal}&cu=INR`, '_blank');
+        }
     };
 
     return (

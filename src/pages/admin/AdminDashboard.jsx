@@ -18,7 +18,7 @@ const AdminDashboard = () => {
     const [banners, setBanners] = useState([]);
     const [aboutContent, setAboutContent] = useState({ text: '', images: [] });
     const [shippingRates, setShippingRates] = useState({});
-    const [paymentSettings, setPaymentSettings] = useState({ upiId: '', qrCode: '' });
+    const [paymentSettings, setPaymentSettings] = useState({ upiId: '', qrCode: '', customLink: '' });
     const [loading, setLoading] = useState(true);
     const [selectedOrder, setSelectedOrder] = useState(null);
 
@@ -79,13 +79,12 @@ const AdminDashboard = () => {
     const fetchData = async () => {
         try {
             console.log('AdminDashboard: Fetching data...');
-            const [p, o, u, c, b, a, s] = await Promise.all([
+            const [p, o, u, c, b, a, s, pay] = await Promise.all([
                 productService.getAllProducts(),
                 orderService.getAllOrders(),
                 authService.getAllUsers(),
                 categoryService.getAll(),
                 bannerService.getAll(),
-                contentService.getAbout(),
                 contentService.getAbout(),
                 shippingService.getRates(),
                 paymentService.getSettings()
@@ -98,7 +97,7 @@ const AdminDashboard = () => {
             setBanners(b);
             setAboutContent(a || { text: '', images: [] });
             setShippingRates(s || {});
-            setPaymentSettings(p[7] || { upiId: '', qrCode: '' }); // Access result from Promise.all array
+            setPaymentSettings(pay || { upiId: '', qrCode: '', customLink: '' });
         } catch (error) {
             console.error('Error fetching admin data:', error);
         } finally {
@@ -763,6 +762,15 @@ const AdminDashboard = () => {
                         value={paymentSettings.qrCode}
                         onChange={(e) => setPaymentSettings({ ...paymentSettings, qrCode: e.target.value })}
                     />
+                    <Input
+                        label="Custom Payment Link (Optional)"
+                        placeholder="e.g. https://razorpay.me/@merchant"
+                        value={paymentSettings.customLink}
+                        onChange={(e) => setPaymentSettings({ ...paymentSettings, customLink: e.target.value })}
+                    />
+                    <p className="text-sm text-[var(--color-text-muted)]">
+                        If a custom link is provided, the "Pay Now" button will redirect to this link instead of using the UPI ID.
+                    </p>
                     {paymentSettings.qrCode && (
                         <div className="mt-4">
                             <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-2">Preview</label>

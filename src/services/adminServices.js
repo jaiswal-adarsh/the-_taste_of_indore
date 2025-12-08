@@ -131,10 +131,10 @@ export const paymentService = {
             if (docSnap.exists()) {
                 return docSnap.data();
             }
-            return { upiId: '', qrCode: '' };
+            return { upiId: '', qrCode: '', customLink: '' };
         } catch (error) {
             console.error("Error getting payment settings: ", error);
-            return { upiId: '', qrCode: '' };
+            return { upiId: '', qrCode: '', customLink: '' };
         }
     },
     saveSettings: async (settings) => {
