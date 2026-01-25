@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { productService } from '../../services/productService';
 import { orderService } from '../../services/orderService';
-import { categoryService, bannerService, contentService, shippingService, paymentService, brandingService, policyService, phonePeService } from '../../services/adminServices';
+import { categoryService, bannerService, contentService, shippingService, paymentService, brandingService, policyService } from '../../services/adminServices';
 import { authService } from '../../services/authService';
 import Button from '../../components/Button';
 import Input from '../../components/Input';
@@ -20,7 +20,6 @@ const AdminDashboard = () => {
     const [aboutContent, setAboutContent] = useState({ text: '', images: [] });
     const [shippingRates, setShippingRates] = useState({});
     const [paymentSettings, setPaymentSettings] = useState({ upiId: '', qrCode: '', customLink: '' });
-    const [phonePeSettings, setPhonePeSettings] = useState({ merchantId: '', clientId: '', clientSecret: '', clientVersion: '1', mode: 'sandbox' });
     const [brandingSettings, setBrandingSettings] = useState({ favicon: '' });
     const [loading, setLoading] = useState(true);
     const [selectedOrder, setSelectedOrder] = useState(null);
@@ -102,8 +101,7 @@ const AdminDashboard = () => {
                 contentService.getAbout(),
                 shippingService.getRates(),
                 paymentService.getSettings(),
-                brandingService.getSettings(),
-                phonePeService.getSettings()
+                brandingService.getSettings()
             ]);
             console.log('AdminDashboard: Orders fetched:', o);
             setProducts(p);
@@ -115,7 +113,6 @@ const AdminDashboard = () => {
             setShippingRates(s || {});
             setPaymentSettings(pay || { upiId: '', qrCode: '', customLink: '' });
             setBrandingSettings(brand || { favicon: '' });
-            setPhonePeSettings(phonePe || { merchantId: '', clientId: '', clientSecret: '', clientVersion: '1', mode: 'sandbox' });
         } catch (error) {
             console.error('Error fetching admin data:', error);
         } finally {
@@ -396,7 +393,6 @@ const AdminDashboard = () => {
                     { id: 'content', icon: FileText, label: 'Content' },
                     { id: 'payment', icon: CreditCard, label: 'Payment' },
                     { id: 'branding', icon: Palette, label: 'Branding' },
-                    { id: 'phonepe', icon: CreditCard, label: 'PhonePe PG' },
                     { id: 'policies', icon: Shield, label: 'Policies' },
                 ].map(item => (
                     <button
@@ -819,108 +815,7 @@ const AdminDashboard = () => {
         </div>
     );
 
-    const handleSavePhonePe = async () => {
-        try {
-            await phonePeService.saveSettings(phonePeSettings);
-            alert('PhonePe settings saved successfully!');
-        } catch (error) {
-            alert('Failed to save PhonePe settings: ' + error.message);
-        }
-    };
 
-    const handleTestPhonePe = async () => {
-        try {
-            const response = await fetch('/api/phonepe/test-connection', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(phonePeSettings)
-            });
-            const textResponse = await response.text();
-            let data;
-            try {
-                data = JSON.parse(textResponse);
-            } catch (jsonErr) {
-                console.error('Invalid JSON:', textResponse);
-                throw new Error(`Server returned ${response.status} ${response.statusText}. Response: \n${textResponse.substring(0, 500)}`);
-            }
-
-            if (response.ok) {
-                setResultModal({
-                    isOpen: true,
-                    type: 'success',
-                    title: 'Connection Successful',
-                    message: data.message || 'Successfully connected to PhonePe API.',
-                    data: data
-                });
-            } else {
-                setResultModal({
-                    isOpen: true,
-                    type: 'error',
-                    title: 'Connection Failed',
-                    message: data.error || 'The server returned an error.',
-                    data: data
-                });
-            }
-        } catch (error) {
-            setResultModal({
-                isOpen: true,
-                type: 'error',
-                title: 'Test Request Failed',
-                message: error.message,
-                data: null
-            });
-        }
-    };
-
-    const renderPhonePe = () => (
-        <div className="p-8">
-            <h2 className="text-2xl font-bold text-[var(--color-secondary)] mb-6">PhonePe Configuration</h2>
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-[var(--color-border)] max-w-2xl">
-                <div className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1">Mode</label>
-                        <select
-                            className="w-full p-2 border border-[var(--color-border)] rounded-md"
-                            value={phonePeSettings.mode}
-                            onChange={(e) => setPhonePeSettings({ ...phonePeSettings, mode: e.target.value })}
-                        >
-                            <option value="sandbox">Sandbox (Test)</option>
-                            <option value="production">Production (Live)</option>
-                        </select>
-                    </div>
-                    <Input
-                        label="Merchant ID"
-                        placeholder="e.g. YOUR_MERCHANT_ID"
-                        value={phonePeSettings.merchantId}
-                        onChange={(e) => setPhonePeSettings({ ...phonePeSettings, merchantId: e.target.value })}
-                    />
-                    <Input
-                        label="Client ID"
-                        placeholder="Enter Client ID"
-                        value={phonePeSettings.clientId}
-                        onChange={(e) => setPhonePeSettings({ ...phonePeSettings, clientId: e.target.value })}
-                    />
-                    <Input
-                        label="Client Secret"
-                        placeholder="Enter Client Secret"
-                        type="password"
-                        value={phonePeSettings.clientSecret}
-                        onChange={(e) => setPhonePeSettings({ ...phonePeSettings, clientSecret: e.target.value })}
-                    />
-                    <Input
-                        label="Client Version"
-                        placeholder="e.g. 1"
-                        value={phonePeSettings.clientVersion}
-                        onChange={(e) => setPhonePeSettings({ ...phonePeSettings, clientVersion: e.target.value })}
-                    />
-                    <div className="flex gap-4 mt-4">
-                        <Button onClick={handleSavePhonePe}>Save PhonePe Settings</Button>
-                        <Button variant="outline" onClick={handleTestPhonePe}>Test Connection</Button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
 
 
     const handleSaveBranding = async () => {
@@ -1034,7 +929,7 @@ const AdminDashboard = () => {
                 {activeTab === 'content' && renderContent()}
                 {activeTab === 'payment' && renderPayment()}
                 {activeTab === 'branding' && renderBranding()}
-                {activeTab === 'phonepe' && renderPhonePe()}
+
                 {activeTab === 'policies' && renderPolicies()}
             </div>
 
